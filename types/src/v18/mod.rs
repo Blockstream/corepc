@@ -280,7 +280,7 @@ pub use crate::v17::{
     ListLockUnspentItemError, ListReceivedByAddressError, ListSinceBlock, ListSinceBlockError,
     ListTransactions, ListUnspentItemError, ListWallets, LoadWallet, LockUnspent, Locked, Logging,
     MapMempoolEntryError, MempoolAcceptance, MempoolEntryError, MempoolEntryFees,
-    MempoolEntryFeesError, NumericError, PartialSignatureError, PruneBlockchain, PsbtInput,
+    MempoolEntryFeesError, NumericError, PartialSignatureError, UnknownMapError, PruneBlockchain, PsbtInput,
     PsbtInputError, PsbtOutput, PsbtOutputError, PsbtScript, RawFeeDetail, RawFeeRange,
     RawTransaction, RawTransactionError, RawTransactionInput, RawTransactionOutput,
     RescanBlockchain, ScanTxOutSetAbort, ScanTxOutSetError, ScanTxOutSetStatus, ScriptType,

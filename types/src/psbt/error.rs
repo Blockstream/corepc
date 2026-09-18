@@ -6,6 +6,7 @@ use bitcoin::amount::ParseAmountError;
 use bitcoin::{amount, bip32, ecdsa, hex, key};
 
 use crate::error::write_err;
+use crate::CompactSizeError;
 
 /// Error when converting a `RawTransaction` type into the model type.
 #[derive(Debug)]
@@ -140,6 +141,36 @@ impl std::error::Error for WitnessUtxoError {
         match *self {
             Self::Amount(ref e) => Some(e),
             Self::ScriptPubKey(ref e) => Some(e),
+        }
+    }
+}
+
+/// Error when converting a PSBT `unknown` key-value map.
+#[derive(Debug)]
+pub enum UnknownMapError {
+    /// Conversion of a hex-encoded key or value failed.
+    Hex(hex::HexToBytesError),
+    /// Compact size decoding of the key bytes failed.
+    CompactSize(CompactSizeError),
+}
+
+impl fmt::Display for UnknownMapError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Hex(ref e) =>
+                write_err!(f, "conversion of unknown key-value pair hex failed"; e),
+            Self::CompactSize(ref e) =>
+                write_err!(f, "compact size decoding of unknown key failed"; e),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for UnknownMapError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match *self {
+            Self::Hex(ref e) => Some(e),
+            Self::CompactSize(ref e) => Some(e),
         }
     }
 }

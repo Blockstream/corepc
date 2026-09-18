@@ -10,7 +10,7 @@ use bitcoin::{address, hex, sighash};
 use crate::error::write_err;
 use crate::psbt::{
     Bip32DerivError, PartialSignatureError, RawTransactionError, RawTransactionInputError,
-    RawTransactionOutputError, WitnessUtxoError,
+    RawTransactionOutputError, UnknownMapError, WitnessUtxoError,
 };
 
 /// Error when converting a `DecodePsbt` type into the model type.
@@ -19,7 +19,7 @@ pub enum DecodePsbtError {
     /// Conversion of the `tx` field to `unsigned_tx` failed.
     Tx(RawTransactionError),
     /// Conversion of one the map items in the `unknown` field failed.
-    Unknown(hex::HexToBytesError),
+    Unknown(UnknownMapError),
     /// Conversion of one of the PSBT inputs failed.
     Inputs(PsbtInputError),
     /// Conversion of one of the PSBT outputs failed.
@@ -78,7 +78,7 @@ pub enum PsbtInputError {
     /// Conversion of the `final_script_witness` field failed.
     FinalScriptWitness(hex::HexToBytesError),
     /// Conversion of the `unknown` field failed.
-    Unknown(hex::HexToBytesError),
+    Unknown(UnknownMapError),
 }
 
 impl fmt::Display for PsbtInputError {
@@ -134,7 +134,7 @@ pub enum PsbtOutputError {
     /// Conversion of the `bip32_derivs` field failed.
     Bip32Derivs(Bip32DerivError),
     /// Conversion of the `unknown` field failed.
-    Unknown(hex::HexToBytesError),
+    Unknown(UnknownMapError),
 }
 
 impl fmt::Display for PsbtOutputError {

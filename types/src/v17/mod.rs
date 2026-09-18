@@ -300,7 +300,8 @@ pub use self::{
 pub use crate::psbt::{
     Bip32Deriv, Bip32DerivError, FinalScript, InputKeySource, PartialSignatureError, PsbtScript,
     RawTransaction, RawTransactionError, RawTransactionInput, RawTransactionInputError,
-    RawTransactionOutput, RawTransactionOutputError, WitnessUtxo, WitnessUtxoError,
+    RawTransactionOutput, RawTransactionOutputError, UnknownMapError, WitnessUtxo,
+    WitnessUtxoError,
 };
 #[doc(inline)]
 pub use crate::NumericError;
