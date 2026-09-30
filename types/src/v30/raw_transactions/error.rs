@@ -6,7 +6,7 @@ use bitcoin::amount::ParseAmountError;
 use bitcoin::taproot::{IncompleteBuilderError, TaprootBuilderError, TaprootError};
 use bitcoin::{bip32, hex, secp256k1, sighash};
 
-use super::{Bip32DerivError, PartialSignatureError, RawTransactionError, WitnessUtxoError};
+use super::{Bip32DerivError, PartialSignatureError, RawTransactionError, UnknownMapError, WitnessUtxoError};
 use crate::error::write_err;
 
 /// Error when converting a `DecodePsbt` type into the model type.
@@ -19,7 +19,7 @@ pub enum DecodePsbtError {
     /// Conversion of the `proprietary` field failed.
     Proprietary(hex::HexToBytesError),
     /// Conversion of one the map items in the `unknown` field failed.
-    Unknown(hex::HexToBytesError),
+    Unknown(UnknownMapError),
     /// Conversion of one of the PSBT inputs failed.
     Inputs(PsbtInputError),
     /// Conversion of one of the PSBT outputs failed.
@@ -147,7 +147,7 @@ pub enum PsbtInputError {
     /// Conversion of the `proprietary` field failed.
     Proprietary(hex::HexToBytesError),
     /// Conversion of the `unknown` field failed.
-    Unknown(hex::HexToBytesError),
+    Unknown(UnknownMapError),
 }
 
 impl fmt::Display for PsbtInputError {
@@ -252,7 +252,7 @@ pub enum PsbtOutputError {
     /// Conversion of the `proprietary` field failed.
     Proprietary(hex::HexToBytesError),
     /// Conversion of the `unknown` field failed.
-    Unknown(hex::HexToBytesError),
+    Unknown(UnknownMapError),
 }
 
 impl fmt::Display for PsbtOutputError {

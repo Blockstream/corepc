@@ -18,7 +18,7 @@ pub use self::error::{
     DecodePsbtError, DecodeScriptError, GlobalXpubError, PsbtInputError, PsbtOutputError
 };
 // Re-export types that appear in the public API of this module.
-pub use super::{Bip32DerivError, PartialSignatureError, RawTransactionError, WitnessUtxoError};
+pub use super::{Bip32DerivError, PartialSignatureError, UnknownMapError, RawTransactionError, WitnessUtxoError};
 pub use crate::psbt::{Bip32Deriv, PsbtScript, RawTransaction, WitnessUtxo};
 
 /// Result of JSON-RPC method `decodepsbt`.

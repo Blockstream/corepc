@@ -268,7 +268,7 @@ pub use crate::{
         GetUnconfirmedBalance, GetWalletInfoError, ListAddressGroupings, ListAddressGroupingsError,
         ListAddressGroupingsItem, ListLabels, ListLockUnspent, ListLockUnspentItem,
         ListLockUnspentItemError, ListReceivedByAddressError, ListUnspentItemError, ListWallets,
-        LoadWallet, LockUnspent, Locked, MempoolAcceptance, NumericError, PartialSignatureError,
+        LoadWallet, LockUnspent, Locked, MempoolAcceptance, NumericError, PartialSignatureError, UnknownMapError,
         PruneBlockchain, PsbtInput, PsbtInputError, PsbtOutput, PsbtOutputError, RawFeeDetail,
         RawFeeRange, RawTransactionError, RawTransactionInput, RawTransactionOutput,
         RescanBlockchain, ScanTxOutSetAbort, ScanTxOutSetError, ScanTxOutSetStatus, ScriptType,

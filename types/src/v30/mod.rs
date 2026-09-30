@@ -288,7 +288,7 @@ pub use crate::{
         ListAddressGroupings, ListAddressGroupingsError, ListAddressGroupingsItem, ListLabels,
         ListLockUnspent, ListLockUnspentItem, ListLockUnspentItemError, ListReceivedByAddressError,
         ListUnspentItemError, ListWallets, LockUnspent, Locked, NumericError,
-        PartialSignatureError, PruneBlockchain, RawFeeDetail, RawFeeRange, RawTransactionError,
+        PartialSignatureError, UnknownMapError, PruneBlockchain, RawFeeDetail, RawFeeRange, RawTransactionError,
         RawTransactionInput, RawTransactionOutput, RescanBlockchain, ScanTxOutSetAbort,
         ScanTxOutSetError, ScanTxOutSetStatus, ScriptType, SendRawTransaction, SendToAddress,
         SetNetworkActive, SetTxFee, SignFail, SignFailError, SignMessage, SignMessageWithPrivKey,

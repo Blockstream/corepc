@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::error::{
     Bip32DerivError, PartialSignatureError, RawTransactionError, RawTransactionInputError,
-    RawTransactionOutputError, WitnessUtxoError,
+    RawTransactionOutputError, UnknownMapError, WitnessUtxoError,
 };
 use crate::{ScriptPubKey, ScriptSig};
 
@@ -248,18 +248,20 @@ pub struct FinalScript {
 /// Converts a map of unknown key-value pairs.
 pub fn into_unknown(
     hash_map: HashMap<String, String>,
-) -> Result<BTreeMap<psbt::raw::Key, Vec<u8>>, hex::HexToBytesError> {
+) -> Result<BTreeMap<psbt::raw::Key, Vec<u8>>, UnknownMapError> {
+    use UnknownMapError as E;
+
     let mut map = BTreeMap::default();
     for (k, v) in hash_map.iter() {
         // FIXME: This is best guess, I (Tobin) don't actually know what
         // is in the hex string returned by Core.
-        let key = Vec::from_hex(k)?;
-        let value = Vec::from_hex(v)?;
+        let key = Vec::from_hex(k).map_err(E::Hex)?;
+        let value = Vec::from_hex(v).map_err(E::Hex)?;
 
         // rust-bitcoin separates out the key type.
         let mut p = key.as_slice();
-        let _ = crate::compact_size_decode(&mut p); // Moves p past the keylen integer.
-        let type_value = crate::compact_size_decode(&mut p);
+        let _ = crate::compact_size_decode(&mut p).map_err(E::CompactSize)?; // Moves p past the keylen integer.
+        let type_value = crate::compact_size_decode(&mut p).map_err(E::CompactSize)?;
 
         // In the next release of rust-bitcoin this is changed to a u64.
         // Yes this looses data - c'est la vie.

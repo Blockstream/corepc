@@ -103,28 +103,46 @@ fn witness_from_hex_slice<T: AsRef<str>>(witness: &[T]) -> Result<Witness, hex::
     Ok(Witness::from_slice(&bytes))
 }
 
+/// Error when decoding a compact size integer from a byte slice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompactSizeError {
+    /// The slice was empty.
+    Empty,
+    /// The slice was shorter than required for the declared compact size prefix.
+    TooShort { expected: usize, actual: usize },
+}
+
+impl fmt::Display for CompactSizeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Empty => write!(f, "tried to decode an empty slice"),
+            Self::TooShort { expected, actual } => write!(
+                f,
+                "slice too short, expected at least {} bytes, got {}",
+                expected, actual
+            ),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for CompactSizeError {}
+
 /// Gets the compact size encoded value from `slice` and moves slice past the encoding.
 ///
-/// Caller to guarantee that the encoding is well formed. Well formed is defined as:
+/// Returns [`CompactSizeError`] if the slice is empty or too short for the declared prefix.
 ///
-/// * Being at least long enough.
-/// * Containing a minimal encoding.
-///
-/// # Panics
-///
-/// * Panics in release mode if the `slice` does not contain a valid minimal compact size encoding.
-/// * Panics in debug mode if the encoding is not minimal (referred to as "non-canonical" in Core).
 // This is copied from the `bitcoin-internals::compact_size` module.
-pub fn compact_size_decode(slice: &mut &[u8]) -> u64 {
+pub fn compact_size_decode(slice: &mut &[u8]) -> Result<u64, CompactSizeError> {
     if slice.is_empty() {
-        panic!("tried to decode an empty slice");
+        return Err(CompactSizeError::Empty);
     }
 
     match slice[0] {
         0xFF => {
             const SIZE: usize = 9;
             if slice.len() < SIZE {
-                panic!("slice too short, expected at least 9 bytes");
+                return Err(CompactSizeError::TooShort { expected: SIZE, actual: slice.len() });
             };
 
             let mut bytes = [0_u8; SIZE - 1];
@@ -133,12 +151,12 @@ pub fn compact_size_decode(slice: &mut &[u8]) -> u64 {
             let v = u64::from_le_bytes(bytes);
             debug_assert!(v > u32::MAX.into(), "non-minimal encoding of a u64");
             *slice = &slice[SIZE..];
-            v
+            Ok(v)
         }
         0xFE => {
             const SIZE: usize = 5;
             if slice.len() < SIZE {
-                panic!("slice too short, expected at least 5 bytes");
+                return Err(CompactSizeError::TooShort { expected: SIZE, actual: slice.len() });
             };
 
             let mut bytes = [0_u8; SIZE - 1];
@@ -147,12 +165,12 @@ pub fn compact_size_decode(slice: &mut &[u8]) -> u64 {
             let v = u32::from_le_bytes(bytes);
             debug_assert!(v > u16::MAX.into(), "non-minimal encoding of a u32");
             *slice = &slice[SIZE..];
-            u64::from(v)
+            Ok(u64::from(v))
         }
         0xFD => {
             const SIZE: usize = 3;
             if slice.len() < SIZE {
-                panic!("slice too short, expected at least 3 bytes");
+                return Err(CompactSizeError::TooShort { expected: SIZE, actual: slice.len() });
             };
 
             let mut bytes = [0_u8; SIZE - 1];
@@ -161,11 +179,11 @@ pub fn compact_size_decode(slice: &mut &[u8]) -> u64 {
             let v = u16::from_le_bytes(bytes);
             debug_assert!(v >= 0xFD, "non-minimal encoding of a u16");
             *slice = &slice[SIZE..];
-            u64::from(v)
+            Ok(u64::from(v))
         }
         n => {
             *slice = &slice[1..];
-            u64::from(n)
+            Ok(u64::from(n))
         }
     }
 }
@@ -299,5 +317,32 @@ mod tests {
         let f: f64 = 0.000001;
         let got = btc_per_kb(f).unwrap();
         assert_eq!(got, Some(FeeRate::from_sat_per_kwu(25)))
+    }
+
+    #[test]
+    fn compact_size_decode_empty_slice() {
+        let mut slice: &[u8] = &[];
+        assert_eq!(compact_size_decode(&mut slice), Err(CompactSizeError::Empty));
+    }
+
+    #[test]
+    fn compact_size_decode_too_short() {
+        let mut fd: &[u8] = &[0xfd];
+        assert_eq!(
+            compact_size_decode(&mut fd),
+            Err(CompactSizeError::TooShort { expected: 3, actual: 1 })
+        );
+
+        let mut fe: &[u8] = &[0xfe];
+        assert_eq!(
+            compact_size_decode(&mut fe),
+            Err(CompactSizeError::TooShort { expected: 5, actual: 1 })
+        );
+
+        let mut ff: &[u8] = &[0xff];
+        assert_eq!(
+            compact_size_decode(&mut ff),
+            Err(CompactSizeError::TooShort { expected: 9, actual: 1 })
+        );
     }
 }
