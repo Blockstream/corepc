@@ -3,10 +3,14 @@
 //! This module implements a synchronous transport over a raw [`std::net::TcpListener`].
 //! Note that it does not handle TCP over Unix Domain Sockets, see `simple_uds` for this.
 
+use std::io::Read;
 use std::{error, fmt, io, net, time};
 
 use crate::client::Transport;
 use crate::{Request, Response};
+
+/// Absolute maximum response size allowed before cutting off the read.
+const MAX_RESPONSE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 /// Simple synchronous TCP transport.
@@ -15,11 +19,15 @@ pub struct TcpTransport {
     pub addr: net::SocketAddr,
     /// The read and write timeout to use for this connection.
     pub timeout: Option<time::Duration>,
+    /// Maximum number of bytes to read from the response. Uses [`MAX_RESPONSE_BYTES`] if unset.
+    pub max_response_bytes: Option<u64>,
 }
 
 impl TcpTransport {
     /// Creates a new `TcpTransport` without timeouts.
-    pub fn new(addr: net::SocketAddr) -> TcpTransport { TcpTransport { addr, timeout: None } }
+    pub fn new(addr: net::SocketAddr) -> TcpTransport {
+        TcpTransport { addr, timeout: None, max_response_bytes: None }
+    }
 
     fn request<R>(&self, req: impl serde::Serialize) -> Result<R, Error>
     where
@@ -31,12 +39,21 @@ impl TcpTransport {
 
         serde_json::to_writer(&mut sock, &req)?;
 
+        let max_response_bytes = self.max_response_bytes.unwrap_or(MAX_RESPONSE_BYTES);
+        let mut reader = (&mut sock).take(max_response_bytes);
+
         // NOTE: we don't check the id there, so it *must* be synchronous
-        let resp: R = serde_json::Deserializer::from_reader(&mut sock)
-            .into_iter()
-            .next()
-            .ok_or(Error::Timeout)??;
-        Ok(resp)
+        match serde_json::Deserializer::from_reader(&mut reader).into_iter().next() {
+            Some(Ok(resp)) => Ok(resp),
+            Some(Err(e)) => {
+                if reader.limit() == 0 {
+                    Err(Error::ResponseTooLarge { max: max_response_bytes })
+                } else {
+                    Err(Error::Json(e))
+                }
+            }
+            None => Err(Error::Timeout),
+        }
     }
 }
 
@@ -61,6 +78,11 @@ pub enum Error {
     Timeout,
     /// JSON parsing error.
     Json(serde_json::Error),
+    /// The response exceeded the configured maximum size.
+    ResponseTooLarge {
+        /// The maximum number of bytes allowed.
+        max: u64,
+    },
 }
 
 impl fmt::Display for Error {
@@ -71,6 +93,9 @@ impl fmt::Display for Error {
             SocketError(ref e) => write!(f, "couldn't connect to host: {}", e),
             Timeout => f.write_str("didn't receive response data in time, timed out."),
             Json(ref e) => write!(f, "JSON error: {}", e),
+            ResponseTooLarge { max } => {
+                write!(f, "response exceeded maximum size of {} bytes", max)
+            }
         }
     }
 }
@@ -81,7 +106,7 @@ impl error::Error for Error {
 
         match *self {
             SocketError(ref e) => Some(e),
-            Timeout => None,
+            Timeout | ResponseTooLarge { .. } => None,
             Json(ref e) => Some(e),
         }
     }
@@ -135,7 +160,11 @@ mod tests {
         let dummy_resp_ser = serde_json::to_vec(&dummy_resp).unwrap();
 
         let client_thread = thread::spawn(move || {
-            let transport = TcpTransport { addr, timeout: Some(time::Duration::from_secs(5)) };
+            let transport = TcpTransport {
+                addr,
+                timeout: Some(time::Duration::from_secs(5)),
+                max_response_bytes: None,
+            };
             let client = Client::with_transport(transport);
 
             client.send_request(dummy_req.clone()).unwrap()
@@ -154,5 +183,63 @@ mod tests {
         stream.flush().unwrap();
         let recv_resp = client_thread.join().unwrap();
         assert_eq!(serde_json::to_vec(&recv_resp).unwrap(), dummy_resp_ser);
+    }
+
+    #[test]
+    fn response_too_large() {
+        let addr: net::SocketAddr =
+            net::SocketAddrV4::new(net::Ipv4Addr::new(127, 0, 0, 1), 0).into();
+        let server = net::TcpListener::bind(addr).unwrap();
+        let addr = server.local_addr().unwrap();
+        let dummy_req = Request {
+            method: "arandommethod",
+            params: None,
+            id: serde_json::Value::Number(4242242.into()),
+            jsonrpc: Some("2.0"),
+        };
+        let dummy_req_ser = serde_json::to_vec(&dummy_req).unwrap();
+        let dummy_resp = Response {
+            result: None,
+            error: None,
+            id: serde_json::Value::Number(4242242.into()),
+            jsonrpc: Some("2.0".into()),
+        };
+        let dummy_resp_ser = serde_json::to_vec(&dummy_resp).unwrap();
+
+        const MAX: u64 = 1;
+
+        let client_thread = thread::spawn(move || {
+            let transport = TcpTransport {
+                addr,
+                timeout: Some(time::Duration::from_secs(5)),
+                max_response_bytes: Some(MAX),
+            };
+            let client = Client::with_transport(transport);
+
+            client.send_request(dummy_req.clone())
+        });
+
+        let (mut stream, _) = server.accept().unwrap();
+        stream.set_read_timeout(Some(time::Duration::from_secs(5))).unwrap();
+        let mut recv_req = vec![0; dummy_req_ser.len()];
+        let mut read = 0;
+        while read < dummy_req_ser.len() {
+            read += stream.read(&mut recv_req[read..]).unwrap();
+        }
+        assert_eq!(recv_req, dummy_req_ser);
+
+        stream.write_all(&dummy_resp_ser).unwrap();
+        stream.flush().unwrap();
+
+        let recv_err = client_thread.join().unwrap().unwrap_err();
+        match recv_err {
+            crate::Error::Transport(e) => {
+                assert!(matches!(
+                    e.downcast_ref::<Error>(),
+                    Some(Error::ResponseTooLarge { max }) if *max == MAX
+                ));
+            }
+            e => panic!("expected transport error, got {:?}", e),
+        }
     }
 }
