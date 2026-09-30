@@ -22,6 +22,8 @@ const DEFAULT_PORT: u16 = 8332; // the default RPC port for bitcoind.
 const DEFAULT_TIMEOUT_SECONDS: u64 = 15;
 #[cfg(jsonrpc_fuzz)]
 const DEFAULT_TIMEOUT_SECONDS: u64 = 1;
+/// This is a DoS bound against untrusted peers.
+const DEFAULT_MAX_BODY_SIZE: usize = 128 * 1024 * 1024;
 
 /// An HTTP transport that uses [`bitreq`] and is useful for running a bitcoind RPC client.
 #[derive(Clone, Debug)]
@@ -32,6 +34,8 @@ pub struct BitreqHttpTransport {
     timeout: Duration,
     /// The value of the `Authorization` HTTP header, i.e., a base64 encoding of 'user:password'.
     basic_auth: Option<String>,
+    /// Maximum HTTP response body size accepted from the RPC server, in bytes.
+    max_body_size: usize,
 }
 
 impl Default for BitreqHttpTransport {
@@ -40,6 +44,7 @@ impl Default for BitreqHttpTransport {
             url: format!("{}:{}", DEFAULT_URL, DEFAULT_PORT),
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECONDS),
             basic_auth: None,
+            max_body_size: DEFAULT_MAX_BODY_SIZE,
         }
     }
 }
@@ -58,10 +63,12 @@ impl BitreqHttpTransport {
         let req = match &self.basic_auth {
             Some(auth) => bitreq::Request::new(bitreq::Method::Post, &self.url)
                 .with_timeout(self.timeout.as_secs())
+                .with_max_body_size(self.max_body_size)
                 .with_header("Authorization", auth)
                 .with_json(&req)?,
             None => bitreq::Request::new(bitreq::Method::Post, &self.url)
                 .with_timeout(self.timeout.as_secs())
+                .with_max_body_size(self.max_body_size)
                 .with_json(&req)?,
         };
 
@@ -109,6 +116,12 @@ impl Builder {
     /// Sets the timeout after which requests will abort if they aren't finished.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.tp.timeout = timeout;
+        self
+    }
+
+    /// Sets the maximum HTTP response body size accepted from the RPC server.
+    pub fn max_body_size(mut self, max_body_size: usize) -> Self {
+        self.tp.max_body_size = max_body_size;
         self
     }
 
@@ -265,6 +278,7 @@ mod tests {
     fn construct() {
         let tp = Builder::new()
             .timeout(Duration::from_millis(100))
+            .max_body_size(64 * 1024 * 1024)
             .url("http://localhost:22")
             .unwrap()
             .basic_auth("user".to_string(), None)
